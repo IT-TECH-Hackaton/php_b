@@ -28,8 +28,11 @@ class Config
 
     public static function load(): void
     {
-        $dotenv = \Dotenv\Dotenv::createImmutable(__DIR__ . '/../../');
-        $dotenv->load();
+        $envPath = __DIR__ . '/../../.env';
+        if (file_exists($envPath)) {
+            $dotenv = \Dotenv\Dotenv::createImmutable(__DIR__ . '/../../');
+            $dotenv->load();
+        }
 
         self::$appPort = $_ENV['APP_PORT'] ?? '8080';
         self::$appEnv = $_ENV['APP_ENV'] ?? 'development';

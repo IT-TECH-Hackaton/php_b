@@ -95,19 +95,19 @@ class Routes
                 $group->delete('', [MatchingHandler::class, 'removeEventMatching']);
                 $group->post('/request', [MatchingHandler::class, 'createMatchRequest']);
                 $group->get('/requests', [MatchingHandler::class, 'getMyMatchRequests']);
-                $group->post('/requests/{id}/accept', [MatchingHandler::class, 'acceptMatchRequest']);
-                $group->post('/requests/{id}/reject', [MatchingHandler::class, 'rejectMatchRequest']);
+                $group->post('/requests/{requestId}/accept', [MatchingHandler::class, 'acceptMatchRequest']);
+                $group->post('/requests/{requestId}/reject', [MatchingHandler::class, 'rejectMatchRequest']);
             });
             $matching->addMiddleware(new AuthMiddleware());
 
             $communities = $group->group('/communities', function ($group) {
                 $group->get('', [CommunityHandler::class, 'getCommunities']);
+                $group->get('/my', [CommunityHandler::class, 'getMyCommunities'])->addMiddleware(new AuthMiddleware());
                 $group->get('/{id}', [CommunityHandler::class, 'getCommunity']);
                 $group->get('/{id}/members', [CommunityHandler::class, 'getCommunityMembers']);
                 $group->post('', [CommunityHandler::class, 'createCommunity'])->addMiddleware(new AuthMiddleware());
                 $group->post('/{id}/join', [CommunityHandler::class, 'joinCommunity'])->addMiddleware(new AuthMiddleware());
                 $group->delete('/{id}/leave', [CommunityHandler::class, 'leaveCommunity'])->addMiddleware(new AuthMiddleware());
-                $group->get('/my', [CommunityHandler::class, 'getMyCommunities'])->addMiddleware(new AuthMiddleware());
             });
 
             $admin = $group->group('/admin', function ($group) {

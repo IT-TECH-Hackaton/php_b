@@ -289,7 +289,7 @@ class MatchingHandler
         
         $routeContext = \Slim\Routing\RouteContext::fromRequest($request);
         $route = $routeContext->getRoute();
-        $requestId = $route->getArgument('id');
+        $requestId = $route->getArgument('requestId');
         
         if (!Validation::validateUUID($requestId)) {
             $response->getBody()->write(json_encode(['error' => 'Неверный формат ID']));
@@ -348,7 +348,7 @@ class MatchingHandler
         
         $routeContext = \Slim\Routing\RouteContext::fromRequest($request);
         $route = $routeContext->getRoute();
-        $requestId = $route->getArgument('id');
+        $requestId = $route->getArgument('requestId');
         
         if (!Validation::validateUUID($requestId)) {
             $response->getBody()->write(json_encode(['error' => 'Неверный формат ID']));
