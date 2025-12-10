@@ -4,6 +4,7 @@ namespace App\Handlers;
 
 use App\Database\Database;
 use App\Models\Event;
+use App\Services\EmailService;
 use App\Utils\Validation;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -13,6 +14,13 @@ use Ramsey\Uuid\Uuid;
 
 class EventHandler
 {
+    private EmailService $emailService;
+
+    public function __construct()
+    {
+        $this->emailService = new EmailService();
+    }
+
     public function getEvents(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $db = Database::getConnection();
@@ -627,6 +635,11 @@ class EventHandler
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
         }
         
+        if ($event['status'] !== Event::STATUS_ACTIVE) {
+            $response->getBody()->write(json_encode(['error' => 'Можно участвовать только в активных событиях']));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+        
         $stmt = $db->prepare("SELECT COUNT(*) FROM event_participants WHERE event_id = ? AND user_id = ?");
         $stmt->execute([$eventId, $userId]);
         if ($stmt->fetchColumn() > 0) {
@@ -634,10 +647,42 @@ class EventHandler
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
         
+        if ($event['max_participants'] !== null) {
+            $stmt = $db->prepare("SELECT COUNT(*) FROM event_participants WHERE event_id = ?");
+            $stmt->execute([$eventId]);
+            $participantsCount = (int)$stmt->fetchColumn();
+            
+            if ($participantsCount >= (int)$event['max_participants']) {
+                $response->getBody()->write(json_encode([
+                    'error' => 'Достигнут максимальный лимит участников',
+                    'message' => 'Достигнут максимальный лимит участников'
+                ]));
+                return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+            }
+        }
+        
         $stmt = $db->prepare("INSERT INTO event_participants (id, event_id, user_id, created_at) VALUES (?, ?, ?, ?)");
         $stmt->execute([Uuid::uuid4()->toString(), $eventId, $userId, (new \DateTime())->format('Y-m-d H:i:s')]);
         
-        $response->getBody()->write(json_encode(['message' => 'Вы присоединились к событию']));
+        $stmt = $db->prepare("SELECT email, full_name FROM users WHERE id = ?");
+        $stmt->execute([$event['organizer_id']]);
+        $organizer = $stmt->fetch(\PDO::FETCH_ASSOC);
+        
+        if ($organizer) {
+            $stmt = $db->prepare("SELECT full_name FROM users WHERE id = ?");
+            $stmt->execute([$userId]);
+            $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if ($user) {
+                $this->emailService->sendEventNotification(
+                    $organizer['email'],
+                    $event['title'],
+                    $user['full_name'] . ' подтвердил участие в событии'
+                );
+            }
+        }
+        
+        $response->getBody()->write(json_encode(['message' => 'Участие успешно подтверждено']));
         return $response->withHeader('Content-Type', 'application/json');
     }
 
@@ -654,10 +699,41 @@ class EventHandler
         $eventId = $route->getArgument('id');
         $db = Database::getConnection();
         
+        $stmt = $db->prepare("SELECT COUNT(*) FROM event_participants WHERE event_id = ? AND user_id = ?");
+        $stmt->execute([$eventId, $userId]);
+        if ($stmt->fetchColumn() == 0) {
+            $response->getBody()->write(json_encode(['error' => 'Участие не найдено']));
+            return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+        }
+        
+        $stmt = $db->prepare("SELECT organizer_id, title FROM events WHERE id = ?");
+        $stmt->execute([$eventId]);
+        $event = $stmt->fetch(\PDO::FETCH_ASSOC);
+        
         $stmt = $db->prepare("DELETE FROM event_participants WHERE event_id = ? AND user_id = ?");
         $stmt->execute([$eventId, $userId]);
         
-        $response->getBody()->write(json_encode(['message' => 'Вы покинули событие']));
+        if ($event) {
+            $stmt = $db->prepare("SELECT email FROM users WHERE id = ?");
+            $stmt->execute([$event['organizer_id']]);
+            $organizer = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if ($organizer) {
+                $stmt = $db->prepare("SELECT full_name FROM users WHERE id = ?");
+                $stmt->execute([$userId]);
+                $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+                
+                if ($user) {
+                    $this->emailService->sendEventNotification(
+                        $organizer['email'],
+                        $event['title'],
+                        $user['full_name'] . ' отменил участие в событии'
+                    );
+                }
+            }
+        }
+        
+        $response->getBody()->write(json_encode(['message' => 'Участие отменено']));
         return $response->withHeader('Content-Type', 'application/json');
     }
 

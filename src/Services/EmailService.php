@@ -105,5 +105,15 @@ class EmailService
                 <p>Не забудьте посетить событие!</p>";
         return $this->sendEmail($to, $subject, $body);
     }
+
+    public function sendEventNotification(string $to, string $eventTitle, string $message): bool
+    {
+        $subject = "Уведомление: {$eventTitle}";
+        $body = "<div style='max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; line-height: 1.6; color: #333;'>
+                <h2>Уведомление о событии: {$eventTitle}</h2>
+                <p>{$message}</p>
+                </div>";
+        return $this->sendEmail($to, $subject, $body);
+    }
 }
 
