@@ -1,0 +1,81 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: bekend-postgres-php
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: bekend
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db-init:
+    image: postgres:15-alpine
+    container_name: bekend-db-init-php
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: bekend
+    volumes:
+      - ./migrations:/migrations
+    command: >
+      sh -c "
+        echo 'Ожидание готовности PostgreSQL...' &&
+        until pg_isready -h postgres -U postgres; do sleep 1; done &&
+        echo 'Выполнение миграций...' &&
+        psql -h postgres -U postgres -d bekend -f /migrations/001_create_tables.sql &&
+        echo 'База данных инициализирована!'
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build: .
+    container_name: bekend-app-php
+    ports:
+      - "8080:8080"
+    environment:
+      APP_PORT: 8080
+      APP_ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: bekend
+      JWT_SECRET: ${JWT_SECRET:-your-very-secret-key-change-in-production-min-32-characters-long}
+      JWT_EXPIRATION: 86400
+      EMAIL_HOST: ${EMAIL_HOST:-smtp.yandex.ru}
+      EMAIL_PORT: ${EMAIL_PORT:-465}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID:-}
+      YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:-}
+      YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI:-http://localhost:8080/api/auth/yandex/callback}
+      FAKE_YANDEX_AUTH: ${FAKE_YANDEX_AUTH:-false}
+      YANDEX_GEOCODER_API_KEY: ${YANDEX_GEOCODER_API_KEY:-}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:5173}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./uploads:/var/www/html/uploads
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+

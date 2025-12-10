@@ -1,0 +1,8 @@
+vendor/
+.env
+.idea/
+*.log
+composer.lock
+node_modules/
+.git/
+
